@@ -45,12 +45,11 @@ def scale_input(value, scaler_params):
     if scaler_params['type'] == 'StandardScaler':
         return (value - scaler_params['mean']) / scaler_params['scale']
     elif scaler_params['type'] == 'MinMaxScaler':
-        return (value - scaler_params['min_']) * scaler_params['scale']
+        return value * scaler_params['scale'] + scaler_params['min_']  # CORRECTED FORMULA
     elif scaler_params['type'] == 'RobustScaler':
         return (value - scaler_params['center']) / scaler_params['scale']
     else:
         raise ValueError(f"Unknown scaler type: {scaler_params['type']}")
-
 
 def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
     """
@@ -108,7 +107,8 @@ def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
     case = np.ones_like(Mw)
 
     # Prepare input array for model
-    Input_data = np.column_stack((case, Mw_scaled.flatten(), Rjb_scaled.flatten(), Depth_scaled.flatten(), FM)).astype(np.float32)
+#    Input_data = np.column_stack((case, Mw_scaled.flatten(), Rjb_scaled.flatten(), Depth_scaled.flatten(), FM)).astype(np.float32)
+    Input_data = np.column_stack((case, Mw_scaled[0], Rjb_scaled[0], Depth_scaled[0], FM)).astype(np.float32)
 
     # Make predictions using ONNX model
     input_name = ort_session.get_inputs()[0].name
