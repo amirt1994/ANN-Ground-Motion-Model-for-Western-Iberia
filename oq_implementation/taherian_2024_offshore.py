@@ -132,7 +132,13 @@ def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
         elif col == 'PGV':
             periods.append(-1.0)
 
-        psa_col = Median_GM[col].values/981
+        if col == 'PGV':
+            psa_col = Median_GM[col].values/100
+        else:
+            # PGA and SA: Convert from cm/s² to g by dividing by 981
+            psa_col = Median_GM[col].values / 981
+
+            
         additional_row = additional_data[additional_data['IM'] == col]
 
         if not additional_row.empty:
