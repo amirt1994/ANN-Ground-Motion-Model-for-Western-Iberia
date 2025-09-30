@@ -64,7 +64,6 @@ def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
     Returns:
     - Dictionary with 'periods', 'mean', 'sigma', 'tau', 'phi' values.
     """
-    base_dir = r'D:\My projects\my thesis\PhD\Thesis\Chapter 4\Alvalade\codes\ANN-Ground-Motion-Model-for-Western-Iberia-main'
     
     # Define additional data inside the function
     additional_data = pd.DataFrame({
@@ -83,32 +82,22 @@ def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
     
     IM_list = additional_data['IM'].tolist()
 
-    # ============================================================================
-    # USE EMBEDDED SCALERS INSTEAD OF LOADING FROM FILES
-    # ============================================================================
-    # OLD CODE (using external files):
-    # Mw_scaler = joblib.load(os.path.join(base_dir, "Mw_scaler.pkl"))
-    # Rjb_scaler = joblib.load(os.path.join(base_dir, "Rjb_scaler.pkl"))
-    # Depth_scaler = joblib.load(os.path.join(base_dir, "Depth_scaler.pkl"))
-    # Mw_scaled = Mw_scaler.transform(Mw.reshape(-1, 1))
-    # Rjb_scaled = Rjb_scaler.transform(Rjb.reshape(-1, 1))
-    # Depth_scaled = Depth_scaler.transform(Depth.reshape(-1, 1))
     
     # NEW CODE (using embedded scalers):
     Mw_scaled = scale_input(Mw, SCALER_PARAMS['mw'])
     Rjb_scaled = scale_input(Rjb, SCALER_PARAMS['rjb'])
     Depth_scaled = scale_input(Depth, SCALER_PARAMS['depth'])
 
-    # Load ONNX model (still need the model file)
-    onnx_model_path = os.path.join(base_dir, "onnx_models", "ANN_Portugal_rock.onnx")
+    # Load ONNX model
+    onnx_model_path = "ANN_Portugal_rock.onnx"
+
     ort_session = ort.InferenceSession(onnx_model_path)
 
     # Set case = 1 for offshore scenarios
     case = np.ones_like(Mw)
 
     # Prepare input array for model
-#    Input_data = np.column_stack((case, Mw_scaled.flatten(), Rjb_scaled.flatten(), Depth_scaled.flatten(), FM)).astype(np.float32)
-    Input_data = np.column_stack((case, Mw_scaled[0], Rjb_scaled[0], Depth_scaled[0], FM)).astype(np.float32)
+    Input_data = np.column_stack((case, Mw_scaled.flatten(), Rjb_scaled.flatten(), Depth_scaled.flatten(), FM)).astype(np.float32)
 
     # Make predictions using ONNX model
     input_name = ort_session.get_inputs()[0].name
@@ -132,13 +121,7 @@ def calculate_psa_TEA24_offshore(Mw, Rjb, Depth, FM):
         elif col == 'PGV':
             periods.append(-1.0)
 
-        if col == 'PGV':
-            psa_col = Median_GM[col].values/100
-        else:
-            # PGA and SA: Convert from cm/s² to g by dividing by 981
-            psa_col = Median_GM[col].values / 981
-
-            
+        psa_col = Median_GM[col].values/981
         additional_row = additional_data[additional_data['IM'] == col]
 
         if not additional_row.empty:
@@ -237,19 +220,19 @@ class Taherian2024Offshore(GMPE):
                 period = -1
             else:
                 raise ValueError(f"Unsupported IMT type: {imt.string}")
-
+        
             # Interpolation for the requested period
-            interpolator_mean = interp1d(psa_data['periods'], psa_data['mean'], kind='linear', bounds_error=False, fill_value="extrapolate")
+            # Use axis=1 to interpolate along the period dimension (columns)
+            interpolator_mean = interp1d(psa_data['periods'], psa_data['mean'], kind='linear', bounds_error=False, fill_value="extrapolate", axis=1)
             interpolator_sigma = interp1d(psa_data['periods'], psa_data['sigma'], kind='linear', bounds_error=False, fill_value="extrapolate")
             interpolator_tau = interp1d(psa_data['periods'], psa_data['tau'], kind='linear', bounds_error=False, fill_value="extrapolate")
             interpolator_phi = interp1d(psa_data['periods'], psa_data['phi'], kind='linear', bounds_error=False, fill_value="extrapolate")
-
-            mean[m] = interpolator_mean(period).item()
+        
+            mean[m] = interpolator_mean(period)  # Returns array of shape (3117,)
             sig[m] = interpolator_sigma(period).item()
             tau[m] = interpolator_tau(period).item()
-            phi[m] = interpolator_phi(period).item()
+            phi[m] = interpolator_phi(period).item()            
 
-        print(f"Taherian 2024 Offshore (Embedded Scalers) - Successfully computed for periods: {', '.join([str(imt.string) for imt in imts])}")
 
 
 # Register the GMPE
